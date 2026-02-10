@@ -1,446 +1,214 @@
-<div align="center">
+# UltraMDmemo
 
-# multi-agent-shogun
+自由入力メモをボタン一つで構造化 Markdown に変換する Windows デスクトップアプリ。
 
-**Command your AI army like a feudal warlord.**
-
-Run 8 Claude Code agents in parallel — orchestrated through a samurai-inspired hierarchy with zero coordination overhead.
-
-[![GitHub Stars](https://img.shields.io/github/stars/yohey-w/multi-agent-shogun?style=social)](https://github.com/yohey-w/multi-agent-shogun)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Claude Code](https://img.shields.io/badge/Built_for-Claude_Code-blueviolet)](https://code.claude.com)
-[![Shell](https://img.shields.io/badge/Shell%2FBash-100%25-green)]()
-
-[English](README.md) | [日本語](README_ja.md)
-
-</div>
-
-<p align="center">
-  <img src="assets/screenshots/tmux_multiagent_9panes.png" alt="multi-agent-shogun: 9 panes running in parallel" width="800">
-</p>
-
-<p align="center"><i>One Karo (manager) coordinating 8 Ashigaru (workers) — real session, no mock data.</i></p>
+Claude Code CLI をアプリ内で自動セットアップし、ローカル完結で動作します。事前の CLI インストールや API キーの設定は不要です。
 
 ---
 
-Give a single command. The **Shogun** (general) delegates to the **Karo** (steward), who distributes work across up to **8 Ashigaru** (foot soldiers) — all running as independent Claude Code processes in tmux. Communication flows through YAML files and tmux `send-keys`, meaning **zero extra API calls** for agent coordination.
+## 特徴
 
-<!-- TODO: add demo.gif — record with asciinema or vhs -->
-
-## Why Shogun?
-
-Most multi-agent frameworks burn API tokens on coordination. Shogun doesn't.
-
-| | Claude Code `Task` tool | LangGraph | CrewAI | **multi-agent-shogun** |
-|---|---|---|---|---|
-| **Architecture** | Subagents inside one process | Graph-based state machine | Role-based agents | Feudal hierarchy via tmux |
-| **Parallelism** | Sequential (one at a time) | Parallel nodes (v0.2+) | Limited | **8 independent agents** |
-| **Coordination cost** | API calls per Task | API + infra (Postgres/Redis) | API + CrewAI platform | **Zero** (YAML + tmux) |
-| **Observability** | Claude logs only | LangSmith integration | OpenTelemetry | **Live tmux panes** + dashboard |
-| **Skill discovery** | None | None | None | **Bottom-up auto-proposal** |
-| **Setup** | Built into Claude Code | Heavy (infra required) | pip install | Shell scripts |
-
-### What makes this different
-
-**Zero coordination overhead** — Agents talk through YAML files on disk. The only API calls are for actual work, not orchestration. Run 8 agents and pay only for 8 agents' work.
-
-**Full transparency** — Every agent runs in a visible tmux pane. Every instruction, report, and decision is a plain YAML file you can read, diff, and version-control. No black boxes.
-
-**Battle-tested hierarchy** — The Shogun → Karo → Ashigaru chain of command prevents conflicts by design: clear ownership, dedicated files per agent, event-driven communication, no polling.
+- **ワンクリック変換** — テキストを貼り付けて「整形する」を押すだけ
+- **構造化 Markdown** — タイトル・サマリー・要点・詳細・不明点を自動生成
+- **ゼロセットアップ** — Node.js / Claude Code CLI の導入・認証をアプリが自動処理
+- **プレビュー表示** — Markdown のレンダリングプレビューと Raw テキストの切替
+- **履歴管理** — 変換結果をローカルに自動保存、再利用・再整形が可能
+- **自動更新** — Velopack による GitHub Releases からのサイレントアップデート
 
 ---
 
-## Bottom-Up Skill Discovery
+## 動作環境
 
-This is the feature no other framework has.
+| 項目 | 要件 |
+|---|---|
+| OS | Windows 11（win-x64） |
+| ランタイム | .NET 10 |
+| 認証 | Anthropic アカウント（OAuth、ブラウザ認証） |
 
-As Ashigaru execute tasks, they **automatically identify reusable patterns** and propose them as skill candidates. The Karo aggregates these proposals in `dashboard.md`, and you — the Lord — decide what gets promoted to a permanent skill.
-
-```
-Ashigaru finishes a task
-    ↓
-Notices: "I've done this pattern 3 times across different projects"
-    ↓
-Reports in YAML:  skill_candidate:
-                     found: true
-                     name: "api-endpoint-scaffold"
-                     reason: "Same REST scaffold pattern used in 3 projects"
-    ↓
-Appears in dashboard.md → You approve → Skill created in .claude/commands/
-    ↓
-Any agent can now invoke /api-endpoint-scaffold
-```
-
-Skills grow organically from real work — not from a predefined template library. Your skill set becomes a reflection of **your** workflow.
+> Node.js と Claude Code CLI はアプリが `%LOCALAPPDATA%\UltraMDmemo\lib\` に自動インストールします。システムへのグローバルインストールは行いません。
 
 ---
 
-## Architecture
+## 起動シーケンス
 
-```
-        You (上様 / The Lord)
-             │
-             ▼  Give orders
-      ┌─────────────┐
-      │   SHOGUN    │  Receives your command, plans strategy
-      │    (将軍)    │  Session: shogun
-      └──────┬──────┘
-             │  YAML + send-keys
-      ┌──────▼──────┐
-      │    KARO     │  Breaks tasks down, assigns to workers
-      │    (家老)    │  Session: multiagent, pane 0
-      └──────┬──────┘
-             │  YAML + send-keys
-    ┌─┬─┬─┬─┴─┬─┬─┬─┐
-    │1│2│3│4│5│6│7│8│  Execute in parallel
-    └─┴─┴─┴─┴─┴─┴─┴─┘
-         ASHIGARU (足軽)
-         Panes 1-8
-```
+初回起動時、アプリは以下を自動実行します。
 
-**Communication protocol:**
-- **Downward** (orders): Write YAML → wake target with `tmux send-keys`
-- **Upward** (reports): Write YAML only (no send-keys to avoid interrupting your input)
-- **Polling**: Forbidden. Event-driven only. Your API bill stays predictable.
+1. **自動更新チェック** — GitHub Releases から最新版を確認（更新があれば適用・再起動）
+2. **Node.js インストール** — v20 LTS をローカルにダウンロード・展開
+3. **Claude Code CLI インストール** — npm 経由で `@anthropic-ai/claude-code` をインストール
+4. **認証** — 未ログインならブラウザを開いて OAuth 認証（完了を自動検知）
+5. **接続検証** — CLI の疎通を確認
+6. **メイン画面表示**
 
-**Context persistence (4 layers):**
-
-| Layer | What | Survives |
-|-------|------|----------|
-| Memory MCP | Preferences, rules, cross-project knowledge | Everything |
-| Project files | `config/projects.yaml`, `context/*.md` | Everything |
-| YAML Queue | Tasks, reports (source of truth) | Everything |
-| Session | `CLAUDE.md`, instructions | `/clear` wipes it |
-
-After `/clear`, an agent recovers in **~2,000 tokens** by reading Memory MCP + its task YAML. No expensive re-prompting.
+2回目以降は既存の環境を検出してスキップするため、高速に起動します。
 
 ---
 
-## Battle Formations
+## 使い方
 
-Agents can be deployed in different **formations** (陣形 / *jindate*) depending on the task:
+### 基本操作
 
-| Formation | Ashigaru 1–4 | Ashigaru 5–8 | Best for |
-|-----------|-------------|-------------|----------|
-| **Normal** (default) | Sonnet | Opus | Everyday tasks — cost-efficient |
-| **Battle** (`-k` flag) | Opus | Opus | Critical tasks — maximum capability |
+1. 左ペインにテキストを入力（最大 20,000 文字）
+2. **「整形する」** ボタンをクリック
+3. 右ペインに構造化 Markdown が表示される
+
+### オプション
+
+| 項目 | 説明 |
+|---|---|
+| **種類** | 文書の種類（自動判定 / 会議メモ / 要件メモ / インシデント記録 / 学習ノート / 記事下書き / チャット要約 / 汎用メモ） |
+| **モード** | 整形の方針（バランス / 厳密 / 簡潔 / 詳細） |
+| **末尾に原文挿入** | 変換結果の末尾に入力テキストをそのまま付与 |
+| **タイトル指示** | タイトル生成のヒントを指定（任意） |
+
+### 出力操作
+
+- **コピー** — Markdown テキストをクリップボードにコピー
+- **保存 (.md)** — `.md` ファイルとして保存
+- **Meta保存 (.json)** — メタ情報（処理時間・設定・パス等）を JSON で保存
+
+### 履歴
+
+フッターの **「履歴」** ボタンから履歴パネルを開き、過去の変換結果を閲覧・再利用できます。
+
+- **読込** — 入力と出力を画面に復元
+- **再整形** — 過去の入力テキストを再度変換
+- **削除** — 履歴ファイルを削除
+
+---
+
+## 出力テンプレート
+
+変換結果は以下の構造で生成されます。
+
+```markdown
+# 2026-02-08 07:32_打ち合わせメモ（進捗と課題）
+
+## サマリー
+（全体の要約）
+
+## 要点
+（箇条書きの要点）
+
+## 詳細
+（詳細な内容）
+
+## 不明点 / 要確認
+（不明な点や確認事項）
+
+## 決定事項 / 結論       ← 内容がある場合のみ
+## TODO / 次アクション   ← - [ ] 形式
+## 参照 / リンク         ← 内容がある場合のみ
+
+---
+## 原文                  ← 「末尾に原文挿入」ON の場合のみ
+```
+
+---
+
+## データ保存先
+
+```
+%LOCALAPPDATA%\UltraMDmemo\
+├─ lib/
+│  ├─ nodejs/              … Node.js ランタイム（自動ダウンロード）
+│  ├─ npm/
+│  │  └─ node_modules/
+│  │     └─ @anthropic-ai/
+│  │        └─ claude-code/ … Claude Code CLI
+│  └─ npm-cache/
+├─ history/                … 変換履歴
+│  ├─ <id>.input.txt
+│  ├─ <id>.output.md
+│  └─ <id>.meta.json
+└─ settings.json           … ユーザー設定
+```
+
+---
+
+## 技術スタック
+
+| カテゴリ | 技術 |
+|---|---|
+| フレームワーク | [Avalonia UI](https://avaloniaui.net/) 11.3 |
+| UI テーマ | [Actipro Avalonia UI](https://www.actiprosoftware.com/products/controls/avalonia) (ModernTheme) |
+| アーキテクチャ | MVVM（[CommunityToolkit.Mvvm](https://learn.microsoft.com/dotnet/communitytoolkit/mvvm/) 8.4） |
+| Markdown 表示 | [Markdown.Avalonia.Tight](https://github.com/whistyun/Markdown.Avalonia) 11.0 |
+| 自動更新 | [Velopack](https://velopack.io/) |
+| AI バックエンド | [Claude Code CLI](https://code.claude.com/) (`@anthropic-ai/claude-code`) |
+| ターゲット | .NET 10 / win-x64 |
+
+---
+
+## プロジェクト構成
+
+```
+UltraMDmemo/
+├─ .github/workflows/
+│  ├─ dotnet-build.yml         … プッシュ時ビルド検証
+│  └─ velopack-release.yml     … リリースビルド＋配布
+├─ Models/
+│  ├─ AppSettings.cs
+│  ├─ HistoryPaths.cs
+│  ├─ LabeledValue.cs
+│  ├─ TransformError.cs
+│  ├─ TransformIntent.cs
+│  ├─ TransformMeta.cs
+│  ├─ TransformMode.cs
+│  ├─ TransformRequest.cs
+│  └─ TransformResult.cs
+├─ ViewModels/
+│  ├─ MainWindowViewModel.cs
+│  └─ ViewModelBase.cs
+├─ Views/
+│  ├─ MainWindow.axaml
+│  └─ MainWindow.axaml.cs
+├─ Services/
+│  ├─ AppPaths.cs              … パス解決（Velopack/開発環境自動判定）
+│  ├─ ClaudeCodeSetupService.cs … Node.js/CLI セットアップ・認証
+│  ├─ ClaudeCodeProcessHost.cs  … CLI プロセス実行
+│  ├─ TransformService.cs       … 変換ロジック
+│  ├─ HistoryService.cs         … 履歴 I/O
+│  └─ SettingsService.cs        … 設定管理
+├─ Converters/
+│  └─ InverseBoolConverter.cs
+├─ App.axaml / App.axaml.cs
+├─ Program.cs
+├─ UltraMDmemo.csproj
+└─ UltraMDmemo.slnx
+```
+
+---
+
+## ビルド
 
 ```bash
-./shutsujin_departure.sh          # Normal formation
-./shutsujin_departure.sh -k       # Battle formation (all Opus)
-```
+# 復元 + ビルド
+dotnet restore UltraMDmemo.slnx
+dotnet build UltraMDmemo.slnx --configuration Release
 
-The Karo can also promote individual Ashigaru mid-session with `/model opus` when a specific task demands it.
-
----
-
-## Quick Start
-
-### Windows (WSL2)
-
-```bash
-# 1. Clone
-git clone https://github.com/yohey-w/multi-agent-shogun.git C:\tools\multi-agent-shogun
-
-# 2. Run installer (right-click → Run as Administrator)
-#    → install.bat handles WSL2 + Ubuntu setup automatically
-
-# 3. In Ubuntu terminal:
-cd /mnt/c/tools/multi-agent-shogun
-./first_setup.sh          # One-time: installs tmux, Node.js, Claude Code CLI
-./shutsujin_departure.sh  # Deploy your army
-```
-
-### Linux / macOS
-
-```bash
-# 1. Clone
-git clone https://github.com/yohey-w/multi-agent-shogun.git ~/multi-agent-shogun
-cd ~/multi-agent-shogun && chmod +x *.sh
-
-# 2. Setup + Deploy
-./first_setup.sh          # One-time: installs dependencies
-./shutsujin_departure.sh  # Deploy your army
-```
-
-### Daily startup
-
-```bash
-cd /path/to/multi-agent-shogun
-./shutsujin_departure.sh           # Normal startup (resumes existing tasks)
-./shutsujin_departure.sh -c        # Clean startup (resets task queues, preserves command history)
-tmux attach-session -t shogun      # Connect and give orders
-```
-
-**Startup options:**
-- **Default**: Resumes with existing task queues and command history intact
-- **`-c` / `--clean`**: Resets task queues for a fresh start while preserving command history in `queue/shogun_to_karo.yaml`. Previously assigned tasks are backed up before reset.
-
-<details>
-<summary><b>Convenient aliases</b> (added by first_setup.sh)</summary>
-
-```bash
-alias csst='cd /mnt/c/tools/multi-agent-shogun && ./shutsujin_departure.sh'
-alias css='tmux attach-session -t shogun'
-alias csm='tmux attach-session -t multiagent'
-```
-
-</details>
-
-### 📱 Mobile Access (Command from anywhere)
-
-Control your AI army from your phone — bed, café, or bathroom.
-
-**Requirements:**
-- [Tailscale](https://tailscale.com/) (free) — creates a secure tunnel to your WSL
-- [Termux](https://termux.dev/) (free) — terminal app for Android
-- SSH — already installed
-
-**Setup:**
-
-1. Install Tailscale on both WSL and your phone
-2. In WSL (auth key method — browser not needed):
-   ```bash
-   curl -fsSL https://tailscale.com/install.sh | sh
-   sudo tailscaled &
-   sudo tailscale up --authkey tskey-auth-XXXXXXXXXXXX
-   sudo service ssh start
-   ```
-3. In Termux on your phone:
-   ```sh
-   pkg update && pkg install openssh
-   ssh youruser@your-tailscale-ip
-   css    # Connect to Shogun
-   ```
-4. Open a new Termux window (+ button) for workers:
-   ```sh
-   ssh youruser@your-tailscale-ip
-   csm    # See all 9 panes
-   ```
-
-**Disconnect:** Just swipe the Termux window closed. tmux sessions survive — agents keep working.
-
-**Voice input:** Use your phone's voice keyboard to speak commands. The Shogun understands natural language, so typos from speech-to-text don't matter.
-
----
-
-## How It Works
-
-### 1. Give an order
-
-```
-You: "Research the top 5 MCP servers and create a comparison table"
-```
-
-### 2. Shogun delegates instantly
-
-The Shogun writes the task to `queue/shogun_to_karo.yaml` and wakes the Karo. Control returns to you immediately — no waiting.
-
-### 3. Karo distributes
-
-The Karo breaks the task into subtasks and assigns each to an Ashigaru:
-
-| Worker | Assignment |
-|--------|-----------|
-| Ashigaru 1 | Research Notion MCP |
-| Ashigaru 2 | Research GitHub MCP |
-| Ashigaru 3 | Research Playwright MCP |
-| Ashigaru 4 | Research Memory MCP |
-| Ashigaru 5 | Research Sequential Thinking MCP |
-
-### 4. Parallel execution
-
-All 5 Ashigaru research simultaneously. You can watch them work in real time:
-
-<p align="center">
-  <img src="assets/screenshots/tmux_multiagent_working.png" alt="Ashigaru agents working in parallel" width="700">
-</p>
-
-### 5. Results in dashboard
-
-Open `dashboard.md` to see aggregated results, skill candidates, and blockers — all maintained by the Karo.
-
----
-
-## Real-World Use Cases
-
-This system manages **all white-collar tasks**, not just code. Projects can live anywhere on your filesystem.
-
-```yaml
-# config/projects.yaml
-projects:
-  - id: client_x
-    name: "Client X Consulting"
-    path: "/mnt/c/Consulting/client_x"
-    status: active
-```
-
-**Research sprints** — 8 agents research different topics in parallel, results compiled in minutes.
-
-**Multi-project management** — Switch between client projects without losing context. Memory MCP preserves preferences across sessions.
-
-**Document generation** — Technical writing, test case reviews, comparison tables — distributed across agents and merged.
-
----
-
-## Configuration
-
-### Language
-
-```yaml
-# config/settings.yaml
-language: ja   # Samurai Japanese only
-language: en   # Samurai Japanese + English translation
-```
-
-### Model assignment
-
-| Agent | Default Model | Thinking |
-|-------|--------------|----------|
-| Shogun | Opus | Disabled (delegation doesn't need deep reasoning) |
-| Karo | Opus | Enabled |
-| Ashigaru 1–4 | Sonnet | Enabled |
-| Ashigaru 5–8 | Opus | Enabled |
-
-### MCP servers
-
-```bash
-# Memory (auto-configured by first_setup.sh)
-claude mcp add memory -e MEMORY_FILE_PATH="$PWD/memory/shogun_memory.jsonl" -- npx -y @modelcontextprotocol/server-memory
-
-# Notion
-claude mcp add notion -e NOTION_TOKEN=your_token -- npx -y @notionhq/notion-mcp-server
-
-# GitHub
-claude mcp add github -e GITHUB_PERSONAL_ACCESS_TOKEN=your_pat -- npx -y @modelcontextprotocol/server-github
-
-# Playwright (browser automation)
-claude mcp add playwright -- npx @playwright/mcp@latest
-```
-
-### Screenshot integration
-
-```yaml
-# config/settings.yaml
-screenshot:
-  path: "/mnt/c/Users/YourName/Pictures/Screenshots"
-```
-
-Tell the Shogun "check the latest screenshot" and it reads your screen captures for visual context. (`Win+Shift+S` on Windows.)
-
----
-
-## File Structure
-
-```
-multi-agent-shogun/
-├── install.bat                # Windows first-time setup
-├── first_setup.sh             # Linux/Mac first-time setup
-├── shutsujin_departure.sh     # Daily deployment script
-│
-├── instructions/              # Agent behavior definitions
-│   ├── shogun.md
-│   ├── karo.md
-│   └── ashigaru.md
-│
-├── config/
-│   ├── settings.yaml          # Language, model, screenshot settings
-│   └── projects.yaml          # Project registry
-│
-├── queue/                     # Communication (source of truth)
-│   ├── shogun_to_karo.yaml
-│   ├── tasks/ashigaru{1-8}.yaml
-│   └── reports/ashigaru{1-8}_report.yaml
-│
-├── memory/                    # Memory MCP persistent storage
-├── dashboard.md               # Human-readable status board
-└── CLAUDE.md                  # System instructions (auto-loaded)
+# 実行
+dotnet run --project UltraMDmemo.csproj
 ```
 
 ---
 
-## Troubleshooting
+## CI/CD
 
-<details>
-<summary><b>Agents asking for permissions?</b></summary>
+| ワークフロー | トリガー | 内容 |
+|---|---|---|
+| `dotnet-build.yml` | `push`（`releases` / `release/**` 以外） | ビルド検証 |
+| `velopack-release.yml` | `push`（`releases` または `release/**`） | Velopack パッケージ作成 → GitHub Releases 公開 |
 
-Agents should start with `--dangerously-skip-permissions`. This is handled automatically by `shutsujin_departure.sh`.
+### リリース手順
 
-</details>
-
-<details>
-<summary><b>MCP tools not loading?</b></summary>
-
-MCP tools are lazy-loaded. Search first, then use:
-```
-ToolSearch("select:mcp__memory__read_graph")
-mcp__memory__read_graph()
-```
-
-</details>
-
-<details>
-<summary><b>Agent crashed?</b></summary>
-
-Don't use `css`/`csm` aliases inside an existing tmux session (causes nesting). Instead:
-
-```bash
-# From the crashed pane:
-claude --model opus --dangerously-skip-permissions
-
-# Or from another pane:
-tmux respawn-pane -t shogun:0.0 -k 'claude --model opus --dangerously-skip-permissions'
-```
-
-</details>
-
-<details>
-<summary><b>Workers stuck?</b></summary>
-
-```bash
-tmux attach-session -t multiagent
-# Ctrl+B then 0-8 to switch panes
-```
-
-</details>
+1. `release/X.Y.Z` ブランチを作成してプッシュ
+2. GitHub Actions が自動で `dotnet publish` → `vpk pack` → `vpk upload github` を実行
+3. GitHub Releases に `vX.Y.Z` タグでリリースが公開される
+4. ユーザーのアプリが次回起動時に自動更新を検知・適用
 
 ---
 
-## tmux Quick Reference
+## ライセンス
 
-| Command | Description |
-|---------|-------------|
-| `tmux attach -t shogun` | Connect to the Shogun |
-| `tmux attach -t multiagent` | Connect to workers |
-| `Ctrl+B` then `0`–`8` | Switch panes |
-| `Ctrl+B` then `d` | Detach (agents keep running) |
-
-Mouse support is enabled by default (`set -g mouse on` in `~/.tmux.conf`, configured by `first_setup.sh`). Scroll, click to focus, drag to resize.
-
----
-
-## Contributing
-
-Issues and pull requests are welcome.
-
-- **Bug reports**: Open an issue with reproduction steps
-- **Feature ideas**: Open a discussion first
-- **Skills**: Skills are personal by design and not included in this repo
-
-## Credits
-
-Based on [Claude-Code-Communication](https://github.com/Akira-Papa/Claude-Code-Communication) by Akira-Papa.
-
-## License
-
-[MIT](LICENSE)
-
----
-
-<div align="center">
-
-**One command. Eight agents. Zero coordination cost.**
-
-⭐ Star this repo if you find it useful — it helps others discover it.
-
-</div>
+MIT
