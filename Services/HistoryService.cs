@@ -31,7 +31,7 @@ public sealed class HistoryService : IHistoryService
         var paths = GetPaths(id);
         await File.WriteAllTextAsync(paths.Input, inputText, ct);
         await File.WriteAllTextAsync(paths.Output, outputMarkdown, ct);
-        var json = JsonSerializer.Serialize(meta, JsonOptions.Default);
+        var json = JsonSerializer.Serialize(meta, AppJsonContext.Default.TransformMeta);
         await File.WriteAllTextAsync(paths.Meta, json, ct);
     }
 
@@ -48,7 +48,7 @@ public sealed class HistoryService : IHistoryService
             try
             {
                 var json = await File.ReadAllTextAsync(file, ct);
-                var meta = JsonSerializer.Deserialize<TransformMeta>(json, JsonOptions.Default);
+                var meta = JsonSerializer.Deserialize(json, AppJsonContext.Default.TransformMeta);
                 if (meta is not null) items.Add(meta);
             }
             catch
@@ -66,7 +66,7 @@ public sealed class HistoryService : IHistoryService
         var input = await File.ReadAllTextAsync(paths.Input, ct);
         var output = await File.ReadAllTextAsync(paths.Output, ct);
         var json = await File.ReadAllTextAsync(paths.Meta, ct);
-        var meta = JsonSerializer.Deserialize<TransformMeta>(json, JsonOptions.Default)
+        var meta = JsonSerializer.Deserialize(json, AppJsonContext.Default.TransformMeta)
             ?? throw new InvalidOperationException($"メタデータの読み込みに失敗: {id}");
         return (input, output, meta);
     }

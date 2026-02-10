@@ -90,7 +90,7 @@ public partial class MainWindow : Window
         if (file is not null)
         {
             await using var stream = await file.OpenWriteAsync();
-            var json = JsonSerializer.Serialize(meta, JsonOptions.Default);
+            var json = JsonSerializer.Serialize(meta, AppJsonContext.Default.TransformMeta);
             await using var writer = new StreamWriter(stream, Encoding.UTF8);
             await writer.WriteAsync(json);
 
