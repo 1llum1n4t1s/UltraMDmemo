@@ -1,0 +1,69 @@
+name: Velopack リリース
+
+on:
+  push:
+    branches:
+      - releases
+      - release/**
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - name: リポジトリをチェックアウト
+        uses: actions/checkout@v4
+
+      - name: リリースバージョンを決定
+        shell: pwsh
+        run: |
+          $refName = '${{ github.ref_name }}'
+          if ($refName -match '^release\/(?<version>\d+\.\d+\.\d+)$') {
+            $version = $Matches['version']
+          } else {
+            $version = '1.0.${{ github.run_number }}'
+          }
+          "VPK_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: .NET SDK をセットアップ
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: 依存関係を復元
+        run: dotnet restore UltraMDmemo/UltraMDmemo.csproj
+
+      - name: アプリを発行
+        run: dotnet publish UltraMDmemo/UltraMDmemo.csproj -c Release -o artifacts/publish -r win-x64
+
+      - name: Velopack CLI をインストール
+        shell: pwsh
+        run: |
+          dotnet tool install --global vpk
+          $toolsPath = "$env:USERPROFILE\.dotnet\tools"
+          Add-Content -LiteralPath $env:GITHUB_PATH -Value $toolsPath -Encoding utf8
+
+      - name: Velopack パッケージを作成
+        shell: pwsh
+        run: |
+          vpk pack `
+            --packId UltraMDmemo `
+            --packVersion $env:VPK_VERSION `
+            --packDir artifacts/publish `
+            --mainExe UltraMDmemo.exe `
+            --outputDir artifacts/releases
+
+      - name: GitHub Releases へアップロード
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $repoUrl = "https://github.com/${{ github.repository }}"
+          vpk upload github `
+            --repoUrl $repoUrl `
+            --outputDir artifacts/releases `
+            --tag v$env:VPK_VERSION `
+            --publish `
+            --token $env:GITHUB_TOKEN
