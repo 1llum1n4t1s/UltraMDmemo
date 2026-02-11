@@ -75,6 +75,7 @@ jobs:
             --mainExe UltraMDmemo.exe `
             --packDir publish `
             --outputDir artifacts `
+            --channel ${{ matrix.channel }} `
             --shortcuts "StartMenu,Desktop"
 
       - name: Velopack パッケージを作成 (macOS)
@@ -89,6 +90,7 @@ jobs:
             --mainExe UltraMDmemo \
             --packDir publish \
             --outputDir artifacts \
+            --channel ${{ matrix.channel }} \
             --icon icon/app.icns
 
       - name: 既存リリースを削除
