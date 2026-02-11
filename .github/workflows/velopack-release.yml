@@ -21,10 +21,6 @@ jobs:
             os: macos-latest
             rid: osx-arm64
             channel: osx-arm64
-          - name: macOS (Intel)
-            os: macos-13
-            rid: osx-x64
-            channel: osx-x64
     runs-on: ${{ matrix.os }}
     steps:
       - name: リポジトリをチェックアウト

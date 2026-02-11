@@ -3,7 +3,7 @@
     <OutputType Condition="$([MSBuild]::IsOSPlatform('Windows'))">WinExe</OutputType>
     <OutputType Condition="!$([MSBuild]::IsOSPlatform('Windows'))">Exe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
-    <RuntimeIdentifiers>win-x64;osx-x64;osx-arm64</RuntimeIdentifiers>
+    <RuntimeIdentifiers>win-x64;osx-arm64</RuntimeIdentifiers>
     <Nullable>enable</Nullable>
     <PublishAot>true</PublishAot>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
