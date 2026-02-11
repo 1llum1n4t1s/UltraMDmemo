@@ -20,23 +20,24 @@ mkdir -p "$ICONSET_DIR"
 
 # sips コマンドで各サイズのアイコンを生成
 # macOS の iconutil が要求するサイズと命名規則に従う
-declare -A icon_sizes
-icon_sizes=(
-    ["icon_16x16.png"]=16
-    ["icon_16x16@2x.png"]=32
-    ["icon_32x32.png"]=32
-    ["icon_32x32@2x.png"]=64
-    ["icon_128x128.png"]=128
-    ["icon_128x128@2x.png"]=256
-    ["icon_256x256.png"]=256
-    ["icon_256x256@2x.png"]=512
-    ["icon_512x512.png"]=512
-    ["icon_512x512@2x.png"]=1024
-)
+# Bash 3.2 互換のため連想配列を使わず、名前:サイズ の文字列リストで処理する
+icon_entries="
+icon_16x16.png:16
+icon_16x16@2x.png:32
+icon_32x32.png:32
+icon_32x32@2x.png:64
+icon_128x128.png:128
+icon_128x128@2x.png:256
+icon_256x256.png:256
+icon_256x256@2x.png:512
+icon_512x512.png:512
+icon_512x512@2x.png:1024
+"
 
-for name in "${!icon_sizes[@]}"; do
-    size=${icon_sizes[$name]}
-    sips -z $size $size "$PNG_PATH" --out "$ICONSET_DIR/$name" >/dev/null 2>&1
+for entry in $icon_entries; do
+    name="${entry%%:*}"
+    size="${entry##*:}"
+    sips -z "$size" "$size" "$PNG_PATH" --out "$ICONSET_DIR/$name" >/dev/null 2>&1
 done
 
 # iconutil で icns に変換
