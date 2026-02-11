@@ -5,9 +5,18 @@ on:
 
 jobs:
   build:
-    name: .NET ビルド
-    runs-on: windows-latest
+    name: .NET ビルド (${{ matrix.name }})
     if: ${{ !startsWith(github.ref, 'refs/heads/release/') }}
+    strategy:
+      matrix:
+        include:
+          - name: Windows
+            os: windows-latest
+            rid: win-x64
+          - name: macOS (ARM)
+            os: macos-latest
+            rid: osx-arm64
+    runs-on: ${{ matrix.os }}
     steps:
       - name: リポジトリをチェックアウト
         uses: actions/checkout@v4
@@ -21,14 +30,13 @@ jobs:
         run: dotnet restore UltraMDmemo.slnx
 
       - name: ビルド
-        run: dotnet build UltraMDmemo.slnx --configuration Release --no-restore
+        run: dotnet build UltraMDmemo.slnx --configuration Release --no-restore -p:RuntimeIdentifier=${{ matrix.rid }}
 
       - name: ビルド成果物をアップロード
         uses: actions/upload-artifact@v4
         with:
-          name: build-artifacts-release
+          name: build-artifacts-${{ matrix.rid }}
           path: |
-            bin/**/Release/**/*.exe
-            bin/**/Release/**/*.dll
+            bin/**/Release/**
             !bin/**/Release/**/ref/**
           retention-days: 1

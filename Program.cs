@@ -1,5 +1,4 @@
 using System;
-using System.Runtime.Versioning;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia;
@@ -9,7 +8,6 @@ using Velopack.Sources;
 
 namespace UltraMDmemo;
 
-[SupportedOSPlatform("windows")]
 internal sealed class Program
 {
     /// <summary>
@@ -31,13 +29,19 @@ internal sealed class Program
     public static void Main(string[] args)
     {
         // Velopack 初期化（インストーラーのフック処理）
-        VelopackApp.Build()
-            .OnAfterInstallFastCallback(_ => StartupRegistration.Register())
-            .OnAfterUpdateFastCallback(_ => StartupRegistration.Register())
-            .OnBeforeUninstallFastCallback(_ => StartupRegistration.Unregister())
-            .Run();
+        var veloBuilder = VelopackApp.Build();
 
-        // サイレント更新チェックモード（Windows ログイン時のスタートアップから呼び出される）
+        if (OperatingSystem.IsWindows())
+        {
+            veloBuilder
+                .OnAfterInstallFastCallback(_ => StartupRegistration.Register())
+                .OnAfterUpdateFastCallback(_ => StartupRegistration.Register())
+                .OnBeforeUninstallFastCallback(_ => StartupRegistration.Unregister());
+        }
+
+        veloBuilder.Run();
+
+        // サイレント更新チェックモード（ログイン時のスタートアップから呼び出される）
         if (args.Length > 0 && args[0] == "--update-check")
         {
             RunSilentUpdateCheck();
@@ -65,7 +69,7 @@ internal sealed class Program
 
     /// <summary>
     /// UI なしでサイレント更新チェックを実行する。
-    /// Windows ログイン時のスタートアップから呼び出される。
+    /// ログイン時のスタートアップから呼び出される。
     /// </summary>
     private static void RunSilentUpdateCheck()
     {

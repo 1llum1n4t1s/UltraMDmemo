@@ -1,26 +1,32 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <OutputType>WinExe</OutputType>
+    <OutputType Condition="$([MSBuild]::IsOSPlatform('Windows'))">WinExe</OutputType>
+    <OutputType Condition="!$([MSBuild]::IsOSPlatform('Windows'))">Exe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
-    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <RuntimeIdentifiers>win-x64;osx-x64;osx-arm64</RuntimeIdentifiers>
     <Nullable>enable</Nullable>
     <PublishAot>true</PublishAot>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <ApplicationManifest>app.manifest</ApplicationManifest>
-    <ApplicationIcon>icon\app.ico</ApplicationIcon>
+    <ApplicationManifest Condition="$([MSBuild]::IsOSPlatform('Windows'))">app.manifest</ApplicationManifest>
+    <ApplicationIcon Condition="$([MSBuild]::IsOSPlatform('Windows'))">icon\app.ico</ApplicationIcon>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
   </PropertyGroup>
 
-  <!-- ビルド前に PNG から ICO を生成 -->
-  <Target Name="GenerateIcon" BeforeTargets="PrepareForBuild" Condition="Exists('icon\app_icon.png')">
+  <!-- ビルド前に PNG から ICO を生成 (Windows) -->
+  <Target Name="GenerateIcon" BeforeTargets="PrepareForBuild" Condition="$([MSBuild]::IsOSPlatform('Windows')) And Exists('icon\app_icon.png')">
     <Exec Command="pwsh -NoProfile -ExecutionPolicy Bypass -File &quot;$(ProjectDir)icon\generate_icon.ps1&quot;" />
+  </Target>
+
+  <!-- ビルド前に PNG から ICNS を生成 (macOS) -->
+  <Target Name="GenerateIconMac" BeforeTargets="PrepareForBuild" Condition="$([MSBuild]::IsOSPlatform('OSX')) And Exists('icon/app_icon.png')">
+    <Exec Command="bash &quot;$(ProjectDir)icon/generate_icns.sh&quot;" />
   </Target>
 
   <ItemGroup>
     <AvaloniaResource Include="Assets\**" />
     <AvaloniaResource Include="fonts\*.ttf" />
-    <None Remove="nul" />
-    <AvaloniaResource Include="icon\app.ico" />
+    <None Remove="nul" Condition="$([MSBuild]::IsOSPlatform('Windows'))" />
+    <AvaloniaResource Include="icon\app.ico" Condition="$([MSBuild]::IsOSPlatform('Windows'))" />
     <PackageReference Include="Avalonia" Version="11.3.11" />
     <PackageReference Include="Avalonia.Desktop" Version="11.3.11" />
     <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.11" />
@@ -30,8 +36,13 @@
       <PrivateAssets Condition="'$(Configuration)' != 'Debug'">All</PrivateAssets>
     </PackageReference>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
-<PackageReference Include="NLog" Version="6.1.0" />
+    <PackageReference Include="NLog" Version="6.1.0" />
     <PackageReference Include="Velopack" Version="0.0.1369-g1d5c984" />
     <TrimmerRootDescriptor Include="TrimmerRoots.xml" />
+  </ItemGroup>
+
+  <!-- macOS 用アイコンリソース -->
+  <ItemGroup Condition="$([MSBuild]::IsOSPlatform('OSX'))">
+    <AvaloniaResource Include="icon/app.icns" />
   </ItemGroup>
 </Project>

@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
 using System.Net.Http;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
 using System.Threading;
@@ -17,11 +18,22 @@ namespace UltraMDmemo.Services;
 public sealed class ClaudeCodeSetupService : IClaudeCodeSetupService
 {
     private const string NodeVersion = "v20.18.1";
-    private const string NodeDownloadUrl = $"https://nodejs.org/dist/{NodeVersion}/node-{NodeVersion}-win-x64.zip";
     private const int LoginPollIntervalMs = 10_000;
     private const int LoginMaxPolls = 60; // 10分
 
     private static readonly HttpClient HttpClient = new();
+
+    /// <summary>OS とアーキテクチャに応じた Node.js ダウンロード URL を返す。</summary>
+    private static string GetNodeDownloadUrl()
+    {
+        if (OperatingSystem.IsMacOS())
+        {
+            var arch = RuntimeInformation.OSArchitecture == Architecture.Arm64 ? "arm64" : "x64";
+            return $"https://nodejs.org/dist/{NodeVersion}/node-{NodeVersion}-darwin-{arch}.tar.gz";
+        }
+
+        return $"https://nodejs.org/dist/{NodeVersion}/node-{NodeVersion}-win-x64.zip";
+    }
 
     public bool IsNodeJsInstalled => File.Exists(AppPaths.NodeExePath);
 
@@ -42,26 +54,52 @@ public sealed class ClaudeCodeSetupService : IClaudeCodeSetupService
         progress?.Report("Node.js をダウンロード中...");
         AppPaths.EnsureDirectories();
 
-        var tempZip = Path.Combine(Path.GetTempPath(), $"node-{NodeVersion}-win-x64.zip");
+        var downloadUrl = GetNodeDownloadUrl();
+        var tempArchive = Path.Combine(Path.GetTempPath(),
+            OperatingSystem.IsMacOS()
+                ? $"node-{NodeVersion}-darwin.tar.gz"
+                : $"node-{NodeVersion}-win-x64.zip");
         try
         {
-            using var response = await HttpClient.GetAsync(NodeDownloadUrl, HttpCompletionOption.ResponseHeadersRead, ct);
+            using var response = await HttpClient.GetAsync(downloadUrl, HttpCompletionOption.ResponseHeadersRead, ct);
             response.EnsureSuccessStatusCode();
 
-            await using var fileStream = File.Create(tempZip);
+            await using var fileStream = File.Create(tempArchive);
             await response.Content.CopyToAsync(fileStream, ct);
             fileStream.Close();
 
             progress?.Report("Node.js を展開中...");
 
-            // ZIP 内は node-vXX.XX.X-win-x64/ フォルダがルート
             var tempExtract = Path.Combine(Path.GetTempPath(), $"node-extract-{Guid.NewGuid():N}");
-            ZipFile.ExtractToDirectory(tempZip, tempExtract, overwriteFiles: true);
+            Directory.CreateDirectory(tempExtract);
 
-            // 展開先のサブフォルダを見つける
+            if (OperatingSystem.IsMacOS())
+            {
+                // macOS: tar.gz を展開
+                var tarPsi = new ProcessStartInfo
+                {
+                    FileName = "tar",
+                    ArgumentList = { "xzf", tempArchive, "-C", tempExtract },
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    RedirectStandardError = true,
+                };
+                using var tarProc = Process.Start(tarPsi)!;
+                var tarStderr = await tarProc.StandardError.ReadToEndAsync(ct);
+                await tarProc.WaitForExitAsync(ct);
+                if (tarProc.ExitCode != 0)
+                    throw new InvalidOperationException($"Node.js tar.gz の展開に失敗しました: {tarStderr}");
+            }
+            else
+            {
+                // Windows: ZIP を展開
+                ZipFile.ExtractToDirectory(tempArchive, tempExtract, overwriteFiles: true);
+            }
+
+            // 展開先のサブフォルダを見つける (node-vXX.XX.X-<platform>-<arch>/)
             var dirs = Directory.GetDirectories(tempExtract);
             if (dirs.Length == 0)
-                throw new InvalidOperationException("Node.js の ZIP 展開に失敗しました: サブディレクトリが見つかりません。");
+                throw new InvalidOperationException("Node.js アーカイブの展開に失敗しました: サブディレクトリが見つかりません。");
             var extractedDir = dirs[0];
 
             // 既存のディレクトリを削除して移動
@@ -78,8 +116,8 @@ public sealed class ClaudeCodeSetupService : IClaudeCodeSetupService
         }
         finally
         {
-            if (File.Exists(tempZip))
-                File.Delete(tempZip);
+            if (File.Exists(tempArchive))
+                File.Delete(tempArchive);
         }
     }
 
@@ -98,7 +136,11 @@ public sealed class ClaudeCodeSetupService : IClaudeCodeSetupService
         AppPaths.EnsureDirectories();
 
         // ローカル Node.js の npm を使ってインストール
-        var npmCliJs = Path.Combine(AppPaths.NodeJsDir, "node_modules", "npm", "bin", "npm-cli.js");
+        // Windows: nodejs/node_modules/npm/bin/npm-cli.js
+        // macOS:   nodejs/lib/node_modules/npm/bin/npm-cli.js
+        var npmCliJs = OperatingSystem.IsMacOS()
+            ? Path.Combine(AppPaths.NodeJsDir, "lib", "node_modules", "npm", "bin", "npm-cli.js")
+            : Path.Combine(AppPaths.NodeJsDir, "node_modules", "npm", "bin", "npm-cli.js");
         var psi = new ProcessStartInfo
         {
             FileName = AppPaths.NodeExePath,
@@ -237,14 +279,29 @@ public sealed class ClaudeCodeSetupService : IClaudeCodeSetupService
         // "login" はサブコマンドではないため引数なしで起動する。
         // UseShellExecute=true で新しいコンソールウィンドウを開く。
         var nodeBinDir = Path.GetDirectoryName(AppPaths.NodeExePath)!;
-        var psi = new ProcessStartInfo
+        ProcessStartInfo psi;
+        if (OperatingSystem.IsMacOS())
         {
-            FileName = "cmd.exe",
-            Arguments = $"/c \"set \"PATH={nodeBinDir};%PATH%\" && \"{AppPaths.NodeExePath}\" \"{AppPaths.CliJsPath}\" || pause\"",
-            UseShellExecute = true,
-            CreateNoWindow = false,
-            WorkingDirectory = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-        };
+            psi = new ProcessStartInfo
+            {
+                FileName = "/bin/bash",
+                Arguments = $"-c 'export PATH=\"{nodeBinDir}:$PATH\" && \"{AppPaths.NodeExePath}\" \"{AppPaths.CliJsPath}\"'",
+                UseShellExecute = true,
+                CreateNoWindow = false,
+                WorkingDirectory = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+            };
+        }
+        else
+        {
+            psi = new ProcessStartInfo
+            {
+                FileName = "cmd.exe",
+                Arguments = $"/c \"set \"PATH={nodeBinDir};%PATH%\" && \"{AppPaths.NodeExePath}\" \"{AppPaths.CliJsPath}\" || pause\"",
+                UseShellExecute = true,
+                CreateNoWindow = false,
+                WorkingDirectory = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+            };
+        }
 
         using var loginProcess = Process.Start(psi);
 
@@ -313,10 +370,16 @@ public sealed class ClaudeCodeSetupService : IClaudeCodeSetupService
 
     /// <summary>
     /// ProcessStartInfo の PATH 環境変数にローカル Node.js の bin ディレクトリを先頭追加する。
+    /// Windows: NodeJsDir をそのまま追加（node.exe が直下にある）。
+    /// macOS: NodeJsDir/bin を追加（node が bin/ 配下にある）。
     /// </summary>
     internal static void AddNodeToPath(ProcessStartInfo psi)
     {
         var currentPath = psi.Environment.TryGetValue("PATH", out var existing) ? existing : "";
-        psi.Environment["PATH"] = $"{AppPaths.NodeJsDir};{currentPath}";
+        var separator = OperatingSystem.IsWindows() ? ";" : ":";
+        var nodeDir = OperatingSystem.IsMacOS()
+            ? Path.Combine(AppPaths.NodeJsDir, "bin")
+            : AppPaths.NodeJsDir;
+        psi.Environment["PATH"] = $"{nodeDir}{separator}{currentPath}";
     }
 }

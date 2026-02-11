@@ -1,6 +1,6 @@
 # UltraMDmemo
 
-自由入力メモをボタン一つで構造化 Markdown に変換する Windows デスクトップアプリ。
+自由入力メモをボタン一つで構造化 Markdown に変換するデスクトップアプリ。
 
 Claude Code CLI をアプリ内で自動セットアップし、ローカル完結で動作します。事前の CLI インストールや API キーの設定は不要です。
 
@@ -11,10 +11,10 @@ Claude Code CLI をアプリ内で自動セットアップし、ローカル完�
 - **ワンクリック変換** — テキストを貼り付けて「整形する」を押すだけ
 - **構造化 Markdown** — タイトル・サマリー・要点・詳細・不明点を自動生成
 - **ゼロセットアップ** — Node.js / Claude Code CLI の導入・認証をアプリが自動処理
-- **プレビュー表示** — Markdown のレンダリングプレビューと Raw テキストの切替
 - **履歴管理** — 変換結果をローカルに自動保存、再利用・再整形が可能
 - **自動更新** — Velopack による GitHub Releases からのサイレントアップデート
 - **Native AOT** — ネイティブコンパイルによる高速起動・単一バイナリ
+- **クロスプラットフォーム** — Windows / macOS（ARM・Intel）対応
 
 ---
 
@@ -22,11 +22,14 @@ Claude Code CLI をアプリ内で自動セットアップし、ローカル完�
 
 | 項目 | 要件 |
 |---|---|
-| OS | Windows 11（win-x64） |
+| OS | Windows 11（win-x64）/ macOS（osx-arm64, osx-x64） |
 | ランタイム | .NET 10（Native AOT ビルド済みのため実行時は不要） |
 | 認証 | Anthropic アカウント（OAuth、ブラウザ認証） |
 
-> Node.js と Claude Code CLI はアプリが `%LOCALAPPDATA%\UltraMDmemo\lib\` に自動インストールします。システムへのグローバルインストールは行いません。
+> Node.js と Claude Code CLI はアプリがローカルに自動インストールします。システムへのグローバルインストールは行いません。
+>
+> - Windows: `%LOCALAPPDATA%\UltraMDmemo\lib\`
+> - macOS: `~/Library/Application Support/UltraMDmemo/lib/`
 
 ---
 
@@ -34,14 +37,17 @@ Claude Code CLI をアプリ内で自動セットアップし、ローカル完�
 
 ### インストール
 
-GitHub Releases から Velopack インストーラー（`UltraMDmemo-win-Setup.exe`）をダウンロードして実行します。
+GitHub Releases から Velopack インストーラーをダウンロードして実行します。
 
-- スタートメニューとデスクトップにショートカットが作成されます
-- Windows スタートアップに `--update-check` 付きで登録され、ログイン時にサイレント更新チェックが自動実行されます
+- **Windows**: `UltraMDmemo-win-Setup.exe`
+- **macOS (ARM)**: `UltraMDmemo-osx-arm64-Setup.pkg` 等
+- **macOS (Intel)**: `UltraMDmemo-osx-x64-Setup.pkg` 等
+
+Windows ではスタートメニューとデスクトップにショートカットが作成され、Windows スタートアップに `--update-check` 付きで登録されます。
 
 ### 自動更新
 
-更新は以下の 2 経路で自動適用されます。
+更新は以下の経路で自動適用されます。
 
 1. **Windows ログイン時** — スタートアップ登録により `--update-check` モードで起動し、UI なしでサイレント更新を実行
 2. **アプリ起動時** — 通常起動のセットアップシーケンス内で更新を確認
@@ -59,11 +65,12 @@ Windows の「設定 > アプリ」からアンインストールします。ス
 初回起動時、アプリは以下を自動実行します。
 
 1. **Velopack ライフサイクル処理** — インストール/更新/アンインストール時のフック（スタートアップ登録等）
-2. **Node.js インストール** — v20 LTS をローカルにダウンロード・展開
-3. **Claude Code CLI インストール** — npm 経由で `@anthropic-ai/claude-code` をインストール
-4. **認証** — 未ログインならブラウザを開いて OAuth 認証（完了を自動検知）
-5. **接続検証** — CLI の疎通を確認
-6. **メイン画面表示**
+2. **ログ初期化** — NLog によるローリングファイルログを設定
+3. **Node.js インストール** — v20 LTS をローカルにダウンロード・展開
+4. **Claude Code CLI インストール** — npm 経由で `@anthropic-ai/claude-code` をインストール
+5. **認証** — 未ログインならブラウザを開いて OAuth 認証（完了を自動検知）
+6. **接続検証** — CLI の疎通を確認
+7. **メイン画面表示**
 
 2回目以降は既存の環境を検出してスキップするため、高速に起動します。
 
@@ -133,6 +140,8 @@ Windows の「設定 > アプリ」からアンインストールします。ス
 
 ## データ保存先
 
+### Windows
+
 ```
 %LOCALAPPDATA%\UltraMDmemo\
 ├─ current/                … Velopack がアプリ本体を配置
@@ -148,7 +157,25 @@ Windows の「設定 > アプリ」からアンインストールします。ス
 │  ├─ <id>.input.txt
 │  ├─ <id>.output.md
 │  └─ <id>.meta.json
+├─ logs/                   … ローリングログ
+│  └─ UltraMDmemo_YYYYMMDD.log
 └─ settings.json           … ユーザー設定
+```
+
+### macOS
+
+```
+~/Library/Application Support/UltraMDmemo/
+├─ lib/
+│  ├─ nodejs/
+│  ├─ npm/
+│  │  └─ node_modules/
+│  │     └─ @anthropic-ai/
+│  │        └─ claude-code/
+│  └─ npm-cache/
+├─ history/
+├─ logs/
+└─ settings.json
 ```
 
 ---
@@ -160,10 +187,11 @@ Windows の「設定 > アプリ」からアンインストールします。ス
 | フレームワーク | [Avalonia UI](https://avaloniaui.net/) 11.3 |
 | UI テーマ | Avalonia FluentTheme |
 | アーキテクチャ | MVVM（[CommunityToolkit.Mvvm](https://learn.microsoft.com/dotnet/communitytoolkit/mvvm/) 8.4） |
-| Markdown 表示 | [Markdown.Avalonia.Tight](https://github.com/whistyun/Markdown.Avalonia) 11.0 |
+| ログ | [NLog](https://nlog-project.org/) 6.1 |
 | 自動更新 | [Velopack](https://velopack.io/) |
 | AI バックエンド | [Claude Code CLI](https://code.claude.com/) (`@anthropic-ai/claude-code`) |
-| ターゲット | .NET 10 / win-x64 / Native AOT |
+| フォント | [UDEV Gothic JPDOC](https://github.com/yuru7/udev-gothic) |
+| ターゲット | .NET 10 / win-x64, osx-arm64, osx-x64 / Native AOT |
 
 ---
 
@@ -172,14 +200,13 @@ Windows の「設定 > アプリ」からアンインストールします。ス
 ```
 UltraMDmemo/
 ├─ .github/workflows/
-│  ├─ dotnet-build.yml           … PR 時ビルド検証
-│  └─ velopack-release.yml       … リリースビルド＋配布
+│  ├─ dotnet-build.yml           … PR 時ビルド検証（Windows / macOS ARM）
+│  └─ velopack-release.yml       … リリースビルド＋配布（Windows / macOS ARM / macOS Intel）
 ├─ Models/
 │  ├─ AppJsonContext.cs           … JSON Source Generator（AOT 対応）
 │  ├─ AppSettings.cs
 │  ├─ HistoryPaths.cs
 │  ├─ LabeledValue.cs
-│  ├─ TransformError.cs
 │  ├─ TransformIntent.cs
 │  ├─ TransformMeta.cs
 │  ├─ TransformMode.cs
@@ -192,17 +219,33 @@ UltraMDmemo/
 │  ├─ MainWindow.axaml
 │  └─ MainWindow.axaml.cs
 ├─ Services/
-│  ├─ AppPaths.cs                 … パス解決（Velopack/開発環境自動判定）
+│  ├─ AppPaths.cs                 … パス解決（Windows / macOS 自動判定）
 │  ├─ ClaudeCodeSetupService.cs   … Node.js/CLI セットアップ・認証
 │  ├─ ClaudeCodeProcessHost.cs    … CLI プロセス実行
 │  ├─ TransformService.cs         … 変換ロジック
 │  ├─ HistoryService.cs           … 履歴 I/O
 │  ├─ SettingsService.cs          … 設定管理
-│  └─ StartupRegistration.cs      … Windows スタートアップ登録
+│  ├─ StartupRegistration.cs      … OS スタートアップ登録
+│  ├─ Logger.cs                   … NLog ラッパー（LogLevel 列挙型含む）
+│  ├─ IClaudeCodeProcessHost.cs   … インターフェース
+│  ├─ IClaudeCodeSetupService.cs  … インターフェース
+│  ├─ IHistoryService.cs          … インターフェース
+│  ├─ ISettingsService.cs         … インターフェース
+│  └─ ITransformService.cs        … インターフェース
 ├─ Converters/
 │  └─ InverseBoolConverter.cs
+├─ icon/
+│  ├─ app_icon.png                … ソースアイコン
+│  ├─ app_icon.svg                … ソースアイコン（SVG）
+│  ├─ app.ico                     … Windows 用（ビルド時自動生成）
+│  ├─ generate_icon.ps1           … Windows 用 ICO 生成スクリプト
+│  └─ generate_icns.sh            … macOS 用 ICNS 生成スクリプト
+├─ fonts/
+│  └─ UDEVGothicJPDOC-Regular.ttf … 日本語等幅フォント
 ├─ App.axaml / App.axaml.cs
 ├─ Program.cs                     … エントリポイント（Velopack フック・サイレント更新）
+├─ Info.plist                     … macOS バンドル設定
+├─ app.manifest                   … Windows アプリケーションマニフェスト
 ├─ Directory.Build.props           … バージョン管理
 ├─ TrimmerRoots.xml                … AOT Trimmer 保護設定
 ├─ UltraMDmemo.csproj
@@ -221,8 +264,14 @@ dotnet build UltraMDmemo.slnx --configuration Release
 # 実行（開発環境）
 dotnet run --project UltraMDmemo.csproj
 
-# Native AOT パブリッシュ
+# Native AOT パブリッシュ（Windows）
 dotnet publish UltraMDmemo.csproj -c Release -r win-x64
+
+# Native AOT パブリッシュ（macOS ARM）
+dotnet publish UltraMDmemo.csproj -c Release -r osx-arm64
+
+# Native AOT パブリッシュ（macOS Intel）
+dotnet publish UltraMDmemo.csproj -c Release -r osx-x64
 ```
 
 ---
@@ -232,7 +281,7 @@ dotnet publish UltraMDmemo.csproj -c Release -r win-x64
 アプリのバージョンは `Directory.Build.props` の `<Version>` で一元管理します。
 
 ```xml
-<Version>1.0.2</Version>
+<Version>1.0.6</Version>
 ```
 
 リリース時は CI/CD がこの値を読み取り、Velopack パッケージのバージョンとして使用します。
@@ -243,7 +292,7 @@ dotnet publish UltraMDmemo.csproj -c Release -r win-x64
 
 | ワークフロー | トリガー | 内容 |
 |---|---|---|
-| `dotnet-build.yml` | `pull_request` | ビルド検証 + 成果物アップロード |
+| `dotnet-build.yml` | `pull_request` | ビルド検証（Windows / macOS ARM）+ 成果物アップロード |
 | `velopack-release.yml` | `push`（`release/**` ブランチ） | AOT パブリッシュ → Velopack パッケージ作成 → GitHub Releases 公開 |
 
 ### リリース手順
@@ -251,10 +300,10 @@ dotnet publish UltraMDmemo.csproj -c Release -r win-x64
 1. `Directory.Build.props` の `<Version>` を更新
 2. `release/X.Y.Z` ブランチを作成してプッシュ
 3. GitHub Actions が自動で以下を実行:
-   - `dotnet publish`（Native AOT）
-   - `vpk pack`（ショートカット作成: スタートメニュー・デスクトップ）
+   - `dotnet publish`（Native AOT、3 プラットフォーム並列）
+   - `vpk pack`（Windows: ショートカット作成、macOS: ICNS アイコン設定）
    - 既存の同バージョンリリースを削除
-   - `vpk upload github`（`--channel win` で GitHub Releases に公開）
+   - `vpk upload github`（`--channel win` / `osx-arm64` / `osx-x64` で GitHub Releases に公開）
 4. ユーザーのアプリが次回ログイン時または起動時に自動更新を検知・適用
 
 ---

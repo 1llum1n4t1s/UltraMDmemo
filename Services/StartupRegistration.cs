@@ -5,10 +5,11 @@ using Microsoft.Win32;
 namespace UltraMDmemo.Services;
 
 /// <summary>
-/// Windows スタートアップへのアプリケーション登録を管理するクラス。
+/// OS のスタートアップへのアプリケーション登録を管理するクラス。
 /// ログイン時にサイレント更新チェックを実行するために使用。
+/// Windows: レジストリ Run キーで登録。
+/// macOS: 未実装（将来 LaunchAgent で対応予定）。
 /// </summary>
-[SupportedOSPlatform("windows")]
 public static class StartupRegistration
 {
     private const string RunKeyPath = @"Software\Microsoft\Windows\CurrentVersion\Run";
@@ -19,6 +20,29 @@ public static class StartupRegistration
     /// インストール時・更新時に呼び出される。
     /// </summary>
     public static void Register()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            RegisterWindows();
+        }
+        // macOS: LaunchAgent 対応は将来課題
+    }
+
+    /// <summary>
+    /// スタートアップからアプリケーションの登録を解除する。
+    /// アンインストール時に呼び出される。
+    /// </summary>
+    public static void Unregister()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            UnregisterWindows();
+        }
+        // macOS: LaunchAgent 対応は将来課題
+    }
+
+    [SupportedOSPlatform("windows")]
+    private static void RegisterWindows()
     {
         try
         {
@@ -45,11 +69,8 @@ public static class StartupRegistration
         }
     }
 
-    /// <summary>
-    /// スタートアップからアプリケーションの登録を解除する。
-    /// アンインストール時に呼び出される。
-    /// </summary>
-    public static void Unregister()
+    [SupportedOSPlatform("windows")]
+    private static void UnregisterWindows()
     {
         try
         {
