@@ -13,7 +13,7 @@
 
   <!-- ビルド前に PNG から ICO を生成 -->
   <Target Name="GenerateIcon" BeforeTargets="PrepareForBuild" Condition="Exists('icon\app_icon.png')">
-    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(ProjectDir)icon\generate_icon.ps1&quot;" />
+    <Exec Command="pwsh -NoProfile -ExecutionPolicy Bypass -File &quot;$(ProjectDir)icon\generate_icon.ps1&quot;" />
   </Target>
 
   <ItemGroup>

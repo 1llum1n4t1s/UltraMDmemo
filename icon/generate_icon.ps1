@@ -17,7 +17,7 @@ function Create-IconFromPng {
 
     # PNGファイルの存在確認
     if (-not (Test-Path $PngPath)) {
-        Write-Host "ERROR: PNGファイルが見つかりません: $PngPath" -ForegroundColor Red
+        Write-Host "ERROR: PNG file not found: $PngPath" -ForegroundColor Red
         return $false
     }
 
@@ -120,7 +120,7 @@ function Create-IconFromPng {
             Move-Item -Path $tempIcoPath -Destination $OutputIcoPath -Force
         }
 
-        Write-Host "✓ Successfully created: $OutputIcoPath with sizes: $($sizes -join ', ')" -ForegroundColor Green
+        Write-Host "[OK] Successfully created: $OutputIcoPath with sizes: $($sizes -join ', ')" -ForegroundColor Green
         return $true
     }
     catch {
@@ -142,7 +142,7 @@ function Create-IconFromPng {
 $scriptDir = if ($PSScriptRoot) { $PSScriptRoot } else { Split-Path -Parent $MyInvocation.MyCommand.Path }
 
 if (-not $scriptDir) {
-    Write-Host "ERROR: スクリプトディレクトリを確認できません" -ForegroundColor Red
+    Write-Host "ERROR: Script directory not found" -ForegroundColor Red
     exit 1
 }
 
@@ -156,7 +156,7 @@ if (Test-Path $appIconPath) {
     $success = Create-IconFromPng -PngPath $appIconPath -OutputIcoPath $appIcoPath
     if (-not $success) { $allSuccess = $false }
 } else {
-    Write-Host "WARNING: app_icon.png が見つかりません: $appIconPath" -ForegroundColor Yellow
+    Write-Host "WARNING: app_icon.png not found: $appIconPath" -ForegroundColor Yellow
 }
 
 if ($allSuccess) {
