@@ -42,6 +42,9 @@ public static class AppPaths
     /// <summary>%LOCALAPPDATA%\UltraMDmemo\settings.json</summary>
     public static string SettingsPath => Path.Combine(BaseDir, "settings.json");
 
+    /// <summary>%LOCALAPPDATA%\UltraMDmemo\logs\</summary>
+    public static string LogDirectory => Path.Combine(BaseDir, "logs");
+
     /// <summary>
     /// Velopack 環境かどうかを判定する。
     /// AppDomain.CurrentDomain.BaseDirectory が \current\ で終わる場合は Velopack 環境。

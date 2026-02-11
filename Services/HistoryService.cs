@@ -51,9 +51,9 @@ public sealed class HistoryService : IHistoryService
                 var meta = JsonSerializer.Deserialize(json, AppJsonContext.Default.TransformMeta);
                 if (meta is not null) items.Add(meta);
             }
-            catch
+            catch (Exception ex)
             {
-                // skip corrupted meta files
+                Logger.LogException($"履歴メタファイルの読み込みに失敗: {Path.GetFileName(file)}", ex);
             }
         }
 

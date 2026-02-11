@@ -4,6 +4,7 @@ using System.IO;
 using System.IO.Compression;
 using System.Net.Http;
 using System.Text;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -58,7 +59,10 @@ public sealed class ClaudeCodeSetupService : IClaudeCodeSetupService
             ZipFile.ExtractToDirectory(tempZip, tempExtract, overwriteFiles: true);
 
             // 展開先のサブフォルダを見つける
-            var extractedDir = Directory.GetDirectories(tempExtract)[0];
+            var dirs = Directory.GetDirectories(tempExtract);
+            if (dirs.Length == 0)
+                throw new InvalidOperationException("Node.js の ZIP 展開に失敗しました: サブディレクトリが見つかりません。");
+            var extractedDir = dirs[0];
 
             // 既存のディレクトリを削除して移動
             if (Directory.Exists(AppPaths.NodeJsDir))
@@ -132,16 +136,67 @@ public sealed class ClaudeCodeSetupService : IClaudeCodeSetupService
         progress?.Report("Claude Code CLI のインストールが完了しました。");
     }
 
+    /// <summary>
+    /// ~/.claude/.credentials.json の認証トークン直接チェック（高速）。
+    /// ファイルが存在し accessToken が含まれていれば true を返す。
+    /// </summary>
+    private static readonly string CredentialsPath = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+        ".claude", ".credentials.json");
+
+    private static bool CheckCredentialsFile()
+    {
+        try
+        {
+            if (!File.Exists(CredentialsPath))
+                return false;
+
+            var json = File.ReadAllText(CredentialsPath);
+            using var doc = JsonDocument.Parse(json);
+
+            // claudeAiOauth.accessToken が存在し空でなければログイン済み
+            if (doc.RootElement.TryGetProperty("claudeAiOauth", out var oauth)
+                && oauth.TryGetProperty("accessToken", out var token)
+                && token.GetString() is { Length: > 0 })
+            {
+                return true;
+            }
+
+            return false;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogException("credentials.json の読み取りに失敗", ex);
+            return false;
+        }
+    }
+
     public async Task<bool> IsLoggedInAsync(CancellationToken ct = default)
     {
         if (!IsNodeJsInstalled || !IsCliInstalled)
             return false;
 
+        // 高速パス: 認証トークンファイルを直接チェック
+        var fileCheck = CheckCredentialsFile();
+        Logger.Log($"[LoginCheck] credentials.json チェック: {fileCheck}", LogLevel.Debug);
+        if (fileCheck)
+            return true;
+
+        // フォールバック: CLI プロセスで確認（ファイルがない or 構造が異なる場合）
+        Logger.Log("[LoginCheck] credentials.json なし/不正 → CLI フォールバック開始", LogLevel.Debug);
+        return await IsLoggedInViaCli(ct);
+    }
+
+    /// <summary>CLI プロセスを起動してログイン状態を確認する（従来方式）。</summary>
+    private async Task<bool> IsLoggedInViaCli(CancellationToken ct)
+    {
         try
         {
             using var proc = new Process();
             proc.StartInfo.FileName = AppPaths.NodeExePath;
-            proc.StartInfo.Arguments = $"\"{AppPaths.CliJsPath}\" config get";
+            proc.StartInfo.ArgumentList.Add(AppPaths.CliJsPath);
+            proc.StartInfo.ArgumentList.Add("config");
+            proc.StartInfo.ArgumentList.Add("get");
             proc.StartInfo.UseShellExecute = false;
             proc.StartInfo.CreateNoWindow = true;
             proc.StartInfo.RedirectStandardOutput = true;
@@ -156,11 +211,17 @@ public sealed class ClaudeCodeSetupService : IClaudeCodeSetupService
 
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             cts.CancelAfter(20_000);
+
+            // stdout/stderr を読み取らないとバッファ満杯でデッドロックする
+            var stdoutTask = proc.StandardOutput.ReadToEndAsync(cts.Token);
+            var stderrTask = proc.StandardError.ReadToEndAsync(cts.Token);
+            await Task.WhenAll(stdoutTask, stderrTask);
             await proc.WaitForExitAsync(cts.Token);
             return proc.ExitCode == 0;
         }
-        catch
+        catch (Exception ex)
         {
+            Logger.LogException("CLI ログインチェックに失敗", ex);
             return false;
         }
     }
@@ -235,11 +296,17 @@ public sealed class ClaudeCodeSetupService : IClaudeCodeSetupService
 
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             cts.CancelAfter(30_000);
+
+            // stdout/stderr を読み取らないとバッファ満杯でデッドロックする
+            var stdoutTask = process.StandardOutput.ReadToEndAsync(cts.Token);
+            var stderrTask = process.StandardError.ReadToEndAsync(cts.Token);
+            await Task.WhenAll(stdoutTask, stderrTask);
             await process.WaitForExitAsync(cts.Token);
             return process.ExitCode == 0;
         }
-        catch
+        catch (Exception ex)
         {
+            Logger.LogException("接続検証に失敗", ex);
             return false;
         }
     }

@@ -63,6 +63,7 @@ public sealed class ClaudeCodeProcessHost : IClaudeCodeProcessHost
 
         try
         {
+            await Task.WhenAll(stdoutTask, stderrTask);
             await process.WaitForExitAsync(timeoutCts.Token);
         }
         catch (OperationCanceledException) when (timeoutCts.IsCancellationRequested)
@@ -71,8 +72,8 @@ public sealed class ClaudeCodeProcessHost : IClaudeCodeProcessHost
             throw new TimeoutException($"Claude CLI が {TimeoutMs / 1000} 秒以内に応答しませんでした。");
         }
 
-        var stdout = await stdoutTask;
-        var stderr = await stderrTask;
+        var stdout = stdoutTask.Result;
+        var stderr = stderrTask.Result;
 
         if (process.ExitCode != 0)
         {

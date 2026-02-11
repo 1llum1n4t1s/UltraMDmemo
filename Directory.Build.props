@@ -1,10 +1,10 @@
 <Project>
   <PropertyGroup>
-    <Version>1.0.2</Version>
+    <Version>1.0.4</Version>
     <AssemblyTitle>UltraMDmemo</AssemblyTitle>
     <AssemblyDescription>メモを構造化Markdownへ変換するデスクトップアプリ</AssemblyDescription>
     <AssemblyProduct>UltraMDmemo</AssemblyProduct>
     <Title>UltraMDmemo</Title>
-    <Authors>szk-oss</Authors>
+    <Authors>ゆろち</Authors>
   </PropertyGroup>
 </Project>

@@ -1,13 +1,12 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:UltraMDmemo.ViewModels"
-        xmlns:md="clr-namespace:Markdown.Avalonia;assembly=Markdown.Avalonia"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d" d:DesignWidth="1200" d:DesignHeight="800"
         x:Class="UltraMDmemo.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
-        Icon="/Assets/avalonia-logo.ico"
+        Icon="/icon/app.ico"
         Title="UltraMDmemo"
         WindowStartupLocation="CenterScreen"
         Width="1200" Height="800"
@@ -16,7 +15,7 @@
     <Grid>
         <!-- ===== LOADING SCREEN (起動シーケンス中に表示) ===== -->
         <Border IsVisible="{Binding IsInitializing}"
-                Background="{DynamicResource Container2BackgroundBrush}"
+                Background="{DynamicResource SolidBackgroundFillColorBaseBrush}"
                 ZIndex="100">
             <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="20">
                 <TextBlock Text="UltraMDmemo" FontSize="32" FontWeight="Bold"
@@ -31,7 +30,7 @@
         <DockPanel IsVisible="{Binding IsMainVisible}">
             <!-- ===== HEADER ===== -->
             <Border DockPanel.Dock="Top" Padding="12,6"
-                    BorderBrush="{DynamicResource Container3BorderBrush}"
+                    BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}"
                     BorderThickness="0,0,0,1">
                 <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="*,Auto">
                     <!-- Row 0, Col 0: Title -->
@@ -42,7 +41,7 @@
                     <StackPanel Grid.Row="0" Grid.Column="1"
                                 Orientation="Horizontal" Spacing="8">
                         <Button Content="整形する" Command="{Binding TransformCommand}"
-                                Classes="theme-accent" Padding="24,6" FontWeight="Bold"/>
+                                Classes="accent" Padding="24,6" FontWeight="Bold"/>
                         <Button Content="クリア" Command="{Binding ClearCommand}" Padding="20,6"/>
                     </StackPanel>
 
@@ -90,19 +89,14 @@
 
             <!-- ===== FOOTER ===== -->
             <Border DockPanel.Dock="Bottom" Padding="8,4"
-                    BorderBrush="{DynamicResource Container3BorderBrush}"
+                    BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}"
                     BorderThickness="0,1,0,0">
                 <Grid ColumnDefinitions="*,Auto">
                     <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="16">
                         <TextBlock Text="{Binding StatusMessage}" VerticalAlignment="Center"
                                    MaxWidth="500" TextTrimming="CharacterEllipsis"/>
-                        <TextBlock VerticalAlignment="Center" Opacity="0.7">
-                            <TextBlock.Text>
-                                <MultiBinding StringFormat="文字数: {0} / 20,000">
-                                    <Binding Path="InputLength"/>
-                                </MultiBinding>
-                            </TextBlock.Text>
-                        </TextBlock>
+                        <TextBlock Text="{Binding InputLength, StringFormat='文字数: {0} / 20,000'}"
+                                   VerticalAlignment="Center" Opacity="0.7"/>
                         <TextBlock Text="{Binding ErrorMessage}" Foreground="#D32F2F"
                                    VerticalAlignment="Center"
                                    IsVisible="{Binding ErrorMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
@@ -122,7 +116,7 @@
 
                 <!-- History Pane -->
                 <SplitView.Pane>
-                    <Border BorderBrush="{DynamicResource Container3BorderBrush}"
+                    <Border BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}"
                             BorderThickness="1,0,0,0">
                         <DockPanel>
                             <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="8"
@@ -170,9 +164,9 @@
                                  AcceptsReturn="True" AcceptsTab="True"
                                  TextWrapping="Wrap"
                                  Watermark="整形したいテキストをここに入力..."
-                                 FontFamily="Consolas, Yu Gothic UI, monospace"/>
+                                 FontFamily="avares://UltraMDmemo/fonts/UDEVGothicJPDOC-Regular.ttf#UDEV Gothic JPDOC"/>
 
-                        <GridSplitter Grid.Column="1" Background="{DynamicResource Container3BorderBrush}"
+                        <GridSplitter Grid.Column="1" Background="{DynamicResource DividerStrokeColorDefaultBrush}"
                                       ResizeDirection="Columns"/>
 
                         <!-- Right: Output -->
@@ -188,20 +182,12 @@
                                         IsEnabled="{Binding HasOutput}" Padding="8,4"/>
                             </StackPanel>
 
-                            <!-- Preview / Raw Tabs -->
-                            <TabControl SelectedIndex="{Binding SelectedOutputTab}">
-                                <TabItem Header="Preview">
-                                    <md:MarkdownScrollViewer Markdown="{Binding OutputMarkdown}"
-                                                             Margin="4"/>
-                                </TabItem>
-                                <TabItem Header="Raw">
-                                    <TextBox Text="{Binding OutputMarkdown, Mode=OneWay}"
-                                             IsReadOnly="True"
-                                             AcceptsReturn="True"
-                                             TextWrapping="Wrap"
-                                             FontFamily="Consolas, Yu Gothic UI, monospace"/>
-                                </TabItem>
-                            </TabControl>
+                            <!-- Output (Raw Markdown) -->
+                            <TextBox Text="{Binding OutputMarkdown, Mode=OneWay}"
+                                     IsReadOnly="True"
+                                     AcceptsReturn="True"
+                                     TextWrapping="Wrap"
+                                     FontFamily="avares://UltraMDmemo/fonts/UDEVGothicJPDOC-Regular.ttf#UDEV Gothic JPDOC"/>
                         </DockPanel>
                     </Grid>
                 </SplitView.Content>

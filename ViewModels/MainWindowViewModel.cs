@@ -1,5 +1,6 @@
 using System;
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -35,7 +36,6 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(TransformCommand))]
     [NotifyPropertyChangedFor(nameof(InputLength))]
-    [NotifyPropertyChangedFor(nameof(IsInputTooLong))]
     private string _inputText = string.Empty;
 
     [ObservableProperty]
@@ -73,13 +73,9 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty]
     private string _errorMessage = string.Empty;
 
-    [ObservableProperty]
-    private int _selectedOutputTab;
-
     // ---- Computed Properties ----
 
     public int InputLength => InputText.Length;
-    public bool IsInputTooLong => InputText.Length > 20_000;
     public bool HasOutput => !string.IsNullOrEmpty(OutputMarkdown);
 
     // ---- Dropdown Sources ----
@@ -138,12 +134,44 @@ public partial class MainWindowViewModel : ViewModelBase
         _selectedModeItem = ModeOptions[0];
     }
 
+    // ---- Settings Auto-Save ----
+
+    private bool _isSettingsLoaded;
+
+    /// <summary>UI設定が変更されたとき自動保存する（起動時の初期設定は除外）。</summary>
+    private async void SaveSettingsAsync()
+    {
+        if (!_isSettingsLoaded) return;
+        try
+        {
+            var settings = await _settingsService.LoadAsync();
+            settings.DefaultIntent = SelectedIntentItem.Value;
+            settings.DefaultMode = SelectedModeItem.Value;
+            settings.DefaultIncludeRaw = IncludeRaw;
+            settings.DefaultTitleHint = string.IsNullOrWhiteSpace(TitleHint) ? null : TitleHint;
+            await _settingsService.SaveAsync(settings);
+            Logger.Log(
+                $"UI設定を保存: Intent={settings.DefaultIntent}, Mode={settings.DefaultMode}, IncludeRaw={settings.DefaultIncludeRaw}, TitleHint={settings.DefaultTitleHint}",
+                LogLevel.Debug);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogException("UI設定の保存に失敗", ex);
+        }
+    }
+
+    partial void OnSelectedIntentItemChanged(LabeledValue<TransformIntent> value) => SaveSettingsAsync();
+    partial void OnSelectedModeItemChanged(LabeledValue<TransformMode> value) => SaveSettingsAsync();
+    partial void OnIncludeRawChanged(bool value) => SaveSettingsAsync();
+    partial void OnTitleHintChanged(string value) => SaveSettingsAsync();
+
     // ---- Initialization (起動シーケンス: Section 5, 8.2) ----
 
     public async Task InitializeAsync()
     {
         IsInitializing = true;
         var progress = new Progress<string>(msg => InitializationStep = msg);
+        var sw = Stopwatch.StartNew();
 
         try
         {
@@ -156,15 +184,23 @@ public partial class MainWindowViewModel : ViewModelBase
             SelectedIntentItem = IntentOptions.FirstOrDefault(x => x.Value == settings.DefaultIntent) ?? IntentOptions[0];
             SelectedModeItem = ModeOptions.FirstOrDefault(x => x.Value == settings.DefaultMode) ?? ModeOptions[0];
             IncludeRaw = settings.DefaultIncludeRaw;
+            TitleHint = settings.DefaultTitleHint ?? string.Empty;
+
+            // 初期ロード完了後に自動保存を有効化
+            _isSettingsLoaded = true;
+            Logger.Log($"[Startup] Step1 設定ロード完了 ({sw.ElapsedMilliseconds}ms)", LogLevel.Info);
 
             // Step 2-3: Node.js / CLI の存在確認（インストール済みならファイル存在チェックのみ）
             InitializationStep = "環境を確認中...";
             await _setupService.EnsureNodeJsAsync(progress);
+            Logger.Log($"[Startup] Step2 Node.js 確認完了 ({sw.ElapsedMilliseconds}ms)", LogLevel.Info);
             await _setupService.EnsureCliAsync(progress);
+            Logger.Log($"[Startup] Step3 CLI 確認完了 ({sw.ElapsedMilliseconds}ms)", LogLevel.Info);
 
             // Step 4: ログイン状態チェック（= 接続検証を兼ねる）
             InitializationStep = "接続を確認中...";
             var isLoggedIn = await _setupService.IsLoggedInAsync();
+            Logger.Log($"[Startup] Step4 ログイン確認完了 (loggedIn={isLoggedIn}, {sw.ElapsedMilliseconds}ms)", LogLevel.Info);
 
             // Step 5: 未ログインの場合 → ブラウザ認証起動 + ポーリング
             if (!isLoggedIn)
@@ -173,6 +209,7 @@ public partial class MainWindowViewModel : ViewModelBase
                 await _setupService.RunLoginAsync(progress);
                 // ログイン後に再度確認
                 isLoggedIn = await _setupService.IsLoggedInAsync();
+                Logger.Log($"[Startup] Step5 ブラウザ認証完了 (loggedIn={isLoggedIn}, {sw.ElapsedMilliseconds}ms)", LogLevel.Info);
             }
 
             IsCliAvailable = isLoggedIn;
@@ -185,8 +222,10 @@ public partial class MainWindowViewModel : ViewModelBase
             // Step 6: 履歴読込の完了を待つ（Step 1 で並列開始済み）
             var historyItems = await historyTask;
             HistoryItems = new ObservableCollection<TransformMeta>(historyItems);
+            Logger.Log($"[Startup] Step6 履歴読込完了 ({historyItems.Count}件, {sw.ElapsedMilliseconds}ms)", LogLevel.Info);
 
             InitializationStep = "準備完了";
+            Logger.Log($"[Startup] InitializeAsync 完了 (合計 {sw.ElapsedMilliseconds}ms)", LogLevel.Info);
         }
         catch (TimeoutException ex)
         {
@@ -223,6 +262,8 @@ public partial class MainWindowViewModel : ViewModelBase
         IsProcessing = true;
         ErrorMessage = string.Empty;
         StatusMessage = "整形中...";
+        _currentCts?.Cancel();
+        _currentCts?.Dispose();
         _currentCts = new CancellationTokenSource();
 
         try

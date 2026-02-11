@@ -1,6 +1,7 @@
 using System;
 using System.Runtime.Versioning;
 using System.Threading;
+using System.Threading.Tasks;
 using Avalonia;
 using UltraMDmemo.Services;
 using Velopack;
@@ -43,8 +44,23 @@ internal sealed class Program
             return;
         }
 
+        // ログ初期化
+        Logger.Initialize(new LoggerConfig
+        {
+            LogDirectory = AppPaths.LogDirectory,
+            FilePrefix = "UltraMDmemo",
+        });
+        Logger.LogStartup(args);
+
+        // プロセス起動からの経過を記録
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        Logger.Log("[Startup] Avalonia ビルド開始", LogLevel.Info);
+
         // 通常の Avalonia 起動シーケンスへ
         BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
+
+        Logger.Log($"[Startup] アプリケーション終了 ({sw.ElapsedMilliseconds}ms)", LogLevel.Info);
+        Logger.Dispose();
     }
 
     /// <summary>
@@ -71,8 +87,14 @@ internal sealed class Program
             UpdateInfo? updateInfo;
             try
             {
-                using var cts = new CancellationTokenSource(UpdateCheckTimeoutMs);
-                updateInfo = updateManager.CheckForUpdatesAsync().GetAwaiter().GetResult();
+                var checkTask = updateManager.CheckForUpdatesAsync();
+                var timeoutTask = Task.Delay(UpdateCheckTimeoutMs);
+                if (Task.WhenAny(checkTask, timeoutTask).GetAwaiter().GetResult() == timeoutTask)
+                {
+                    Console.Error.WriteLine("更新チェックがタイムアウトしました。");
+                    return;
+                }
+                updateInfo = checkTask.GetAwaiter().GetResult();
             }
             catch (OperationCanceledException)
             {
