@@ -9,7 +9,7 @@ public sealed class AppSettings
     public TransformIntent DefaultIntent { get; set; } = TransformIntent.Auto;
 
     [JsonConverter(typeof(JsonStringEnumConverter<TransformMode>))]
-    public TransformMode DefaultMode { get; set; } = TransformMode.Balanced;
+    public TransformMode DefaultMode { get; set; } = TransformMode.Soft;
     public bool DefaultIncludeRaw { get; set; }
     public string? DefaultTitleHint { get; set; }
 

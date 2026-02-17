@@ -2,8 +2,9 @@ namespace UltraMDmemo.Models;
 
 public enum TransformMode
 {
-    Balanced,
-    Strict,
+    Faithful,
     Compact,
-    Verbose
+    Augment,
+    Soft,
+    Formal
 }

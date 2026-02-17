@@ -275,35 +275,33 @@ public sealed class ClaudeCodeSetupService : IClaudeCodeSetupService
 
         progress?.Report("ブラウザで認証を開始します...");
 
-        // Claude Code CLI は未ログイン状態で対話モード起動すると自動的にブラウザ認証が開始される。
-        // "login" はサブコマンドではないため引数なしで起動する。
-        // UseShellExecute=true で新しいコンソールウィンドウを開く。
-        var nodeBinDir = Path.GetDirectoryName(AppPaths.NodeExePath)!;
-        ProcessStartInfo psi;
-        if (OperatingSystem.IsMacOS())
+        // "claude auth login" サブコマンドでブラウザ認証を直接起動する。
+        // 対話モード（引数なし）だと CLI コンソールが表示されてしまうため auth login を使用する。
+        var psi = new ProcessStartInfo
         {
-            psi = new ProcessStartInfo
-            {
-                FileName = "/bin/bash",
-                Arguments = $"-c 'export PATH=\"{nodeBinDir}:$PATH\" && \"{AppPaths.NodeExePath}\" \"{AppPaths.CliJsPath}\"'",
-                UseShellExecute = true,
-                CreateNoWindow = false,
-                WorkingDirectory = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-            };
-        }
-        else
-        {
-            psi = new ProcessStartInfo
-            {
-                FileName = "cmd.exe",
-                Arguments = $"/c \"set \"PATH={nodeBinDir};%PATH%\" && \"{AppPaths.NodeExePath}\" \"{AppPaths.CliJsPath}\" || pause\"",
-                UseShellExecute = true,
-                CreateNoWindow = false,
-                WorkingDirectory = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-            };
-        }
+            FileName = AppPaths.NodeExePath,
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            CreateNoWindow = true,
+            StandardOutputEncoding = Encoding.UTF8,
+            StandardErrorEncoding = Encoding.UTF8,
+            WorkingDirectory = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+        };
+        psi.ArgumentList.Add(AppPaths.CliJsPath);
+        psi.ArgumentList.Add("auth");
+        psi.ArgumentList.Add("login");
+        AddNodeToPath(psi);
+        // ネストセッション検出を回避する
+        psi.Environment.Remove("CLAUDECODE");
 
         using var loginProcess = Process.Start(psi);
+        // stdout/stderr を非同期で読み捨てる（バッファ詰まり防止）
+        if (loginProcess is not null)
+        {
+            _ = loginProcess.StandardOutput.ReadToEndAsync(ct);
+            _ = loginProcess.StandardError.ReadToEndAsync(ct);
+        }
 
         // ポーリングでログイン完了を待つ
         for (var i = 0; i < LoginMaxPolls; i++)

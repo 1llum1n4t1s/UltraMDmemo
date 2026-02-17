@@ -90,14 +90,16 @@ public partial class MainWindowViewModel : ViewModelBase
         new(TransformIntent.DraftArticle, "記事下書き"),
         new(TransformIntent.ChatSummary, "チャット要約"),
         new(TransformIntent.Generic, "汎用メモ"),
+        new(TransformIntent.TextConvert, "テキスト変換"),
     ];
 
     public LabeledValue<TransformMode>[] ModeOptions { get; } =
     [
-        new(TransformMode.Balanced, "バランス"),
-        new(TransformMode.Strict, "厳密"),
+        new(TransformMode.Faithful, "原文重視"),
         new(TransformMode.Compact, "簡潔"),
-        new(TransformMode.Verbose, "詳細"),
+        new(TransformMode.Augment, "増加"),
+        new(TransformMode.Soft, "やわらか"),
+        new(TransformMode.Formal, "フォーマル"),
     ];
 
     // ---- History ----

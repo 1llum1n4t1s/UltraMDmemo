@@ -9,5 +9,6 @@ public enum TransformIntent
     Study,
     DraftArticle,
     ChatSummary,
-    Generic
+    Generic,
+    TextConvert
 }

@@ -63,6 +63,33 @@ public sealed class TransformService : ITransformService
 
     private static string BuildPrompt(TransformRequest request)
     {
+        var modeInstruction = request.Mode switch
+        {
+            TransformMode.Faithful => "原文の情報を変えない・足さない方向（忠実性重視）",
+            TransformMode.Compact => "簡潔にまとめてください。",
+            TransformMode.Augment => "内容を膨らませる・補足する方向（情報量重視）",
+            TransformMode.Soft => "原文の口調のカジュアルさ・距離感はそのまま維持しつつ、キツい言い方・断定的・攻撃的・命令的な表現だけを和らげてください。敬語に変換しないこと。友達同士の会話ならタメ口のまま柔らかくし、元が敬語なら敬語のまま柔らかくしてください。",
+            TransformMode.Formal => "ビジネスメールにふさわしい敬語・丁寧語を用い、格式ある文体に整えてください。口語表現やカジュアルな言い回しは書き言葉に置き換え、簡潔かつ礼儀正しい文章にしてください。",
+            _ => "簡潔にまとめてください。"
+        };
+
+        if (request.Intent == TransformIntent.TextConvert)
+        {
+            return $"""
+                あなたはテキスト変換アシスタントです。入力されたテキストの表現を指示に従って変換してください。
+
+                ## 指示:
+                - {modeInstruction}
+
+                ## ルール:
+                - 文章の意味や情報は変えず、表現・トーンのみを変換する
+                - 固有名詞・専門用語は原文のまま維持
+                - Markdownで出力する（見出しや箇条書きなどの構造化は不要、原文の構造を維持）
+
+                入力テキストが標準入力から渡されます。変換後のテキストのみを出力してください。説明や前置きは不要です。
+                """;
+        }
+
         var intentLabel = request.Intent switch
         {
             TransformIntent.Meeting => "会議メモ",
@@ -73,14 +100,6 @@ public sealed class TransformService : ITransformService
             TransformIntent.ChatSummary => "チャット要約",
             TransformIntent.Generic => "汎用メモ",
             _ => "自動判定"
-        };
-
-        var modeInstruction = request.Mode switch
-        {
-            TransformMode.Strict => "厳密に原文に忠実に整理してください。",
-            TransformMode.Compact => "簡潔にまとめてください。",
-            TransformMode.Verbose => "詳細に展開してください。",
-            _ => "バランスよく整理してください。"
         };
 
         var rawSection = request.IncludeRaw
